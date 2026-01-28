@@ -11,3 +11,9 @@ __pycache__/
 
 # Variables de entorno
 .env
+
+.idea/
+instance/
+*.db
+__pycache__/
+.env
