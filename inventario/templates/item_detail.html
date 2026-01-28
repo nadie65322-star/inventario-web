@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Editar item</h3>
+<form id="itemForm">
+  <input type="hidden" name="id" value="{{ item.id }}">
+  <div class="mb-3">
+    <label class="form-label">Nombre</label>
+    <input class="form-control" name="nombre" value="{{ item.nombre }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Categoria</label>
+    <select name="categoria" class="form-select">
+      <option value="medicamento" {% if item.categoria =='medicamento' %}selected{% endif %}>Medicamento</option>
+      <option value="dispositivo" {% if item.categoria =='dispositivo' %}selected{% endif %}>Dispositivo</option>
+      <option value="pop" {% if item.categoria =='pop' %}selected{% endif %}>POP</option>
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Presentación</label>
+    <input class="form-control" name="presentacion" value="{{ item.presentacion }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Lote</label>
+    <input class="form-control" name="lote" value="{{ item.lote }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Fecha de vencimiento</label>
+    <input class="form-control" type="date" name="fecha_vencimiento" value="{{ item.fecha_vencimiento }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Cantidad</label>
+    <input class="form-control" type="number" name="cantidad" value="{{ item.cantidad }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Notas</label>
+    <textarea class="form-control" name="notas">{{ item.notas }}</textarea>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button" id="btnRetirar" class="btn btn-danger">Retirar 1</button>
+    <button type="button" id="btnGuardar" class="btn btn-primary">Guardar ahora</button>
+    <a class="btn btn-secondary" href="/">Volver</a>
+  </div>
+  <div id="saveStatus" class="mt-2 small text-muted"></div>
+</form>
+{% endblock %}

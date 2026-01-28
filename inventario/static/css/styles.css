@@ -1,0 +1,19 @@
+body.dark {
+ background-color: #1e1e1e;
+ color: #f1f1f1;
+}
+
+
+body.dark .card,
+body.dark .table,
+body.dark .form-control,
+body.dark .form-select {
+ background-color: #2b2b2b;
+ color: #f1f1f1;
+}
+
+
+body.dark .table th,
+body.dark .table td {
+ border-color: #444;
+}

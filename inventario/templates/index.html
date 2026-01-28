@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<!-- BUSCAR -->
+<div class="card p-3 mb-4">
+  <form class="row g-2 align-items-center" method="get">
+
+    <div class="col-md-4">
+      <input class="form-control" name="q" placeholder="Buscar"
+             value="{{ request.args.get('q','') }}">
+    </div>
+
+    <div class="col-md-3">
+      <select class="form-select" name="categoria">
+        <option value="">Todas</option>
+        <option value="medicamento">Medicamento</option>
+        <option value="dispositivo">Dispositivo</option>
+        <option value="pop">POP</option>
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <button class="btn btn-primary w-100">Buscar</button>
+    </div>
+
+    <div class="col-md-3 text-end">
+      <a href="/export-pdf" class="btn btn-danger me-2">
+        Exportar PDF
+      </a>
+
+      <button type="button" id="exportExcel" class="btn btn-success">
+        Exportar Excel
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<!-- AÑADIR -->
+<form id="addForm" method="post" action="/add" class="card p-3 mb-4">
+  <h5>Añadir producto</h5>
+
+  <div class="row g-2">
+    <div class="col-md-2">
+      <input name="nombre" class="form-control" placeholder="Nombre" required>
+    </div>
+
+    <div class="col-md-2">
+      <select name="categoria" class="form-select">
+        <option value="medicamento">Medicamento</option>
+        <option value="dispositivo">Dispositivo</option>
+        <option value="pop">POP</option>
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <input name="presentacion" class="form-control" placeholder="Presentación">
+    </div>
+
+    <div class="col-md-2">
+      <input name="lote" class="form-control" placeholder="Lote">
+    </div>
+
+    <div class="col-md-1">
+      <input type="number" name="cantidad" class="form-control" value="0" min="0">
+    </div>
+
+    <div class="col-md-2">
+      <input type="date" name="fecha_vencimiento" class="form-control">
+    </div>
+
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary w-100">+</button>
+    </div>
+  </div>
+</form>
+
+<!-- TABLA -->
+<div class="card p-3">
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Categoría</th>
+        <th>Presentación</th>
+        <th>Lote</th>
+        <th>Vencimiento</th>
+        <th>Cantidad</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for it in items %}
+      <tr data-id="{{ it.id }}">
+        <td>{{ it.nombre }}</td>
+        <td>{{ it.categoria }}</td>
+        <td>{{ it.presentacion }}</td>
+        <td>{{ it.lote }}</td>
+        <td>{{ it.fecha_vencimiento or '—' }}</td>
+        <td class="cantidad">{{ it.cantidad }}</td>
+        <td>
+          <button class="btn btn-success btn-sm btn-inc">+</button>
+          <button class="btn btn-warning btn-sm btn-dec">−</button>
+          <button class="btn btn-danger btn-sm btn-del">🗑</button>
+          <button class="btn btn-info btn-sm btn-historial">📜</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="modal fade" id="cantidadModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title" id="cantidadTitulo"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <p id="cantidadProducto"></p>
+        <input type="number" id="cantidadInput" class="form-control" min="1">
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="cantidadConfirmar">
+          Confirmar
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="historialModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Historial</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Cantidad</th>
+              <th>Nota</th>
+            </tr>
+          </thead>
+          <tbody id="historialBody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}
