@@ -1,0 +1,13 @@
+# Base de datos
+inventario.db
+
+# Entorno virtual
+venv/
+.venv/
+
+# Cache
+__pycache__/
+*.pyc
+
+# Variables de entorno
+.env
