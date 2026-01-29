@@ -14,4 +14,8 @@ def create_app():
     from inventario.routes import bp
     app.register_blueprint(bp)
 
+    # 👇 ESTO ES LO NUEVO
+    with app.app_context():
+        db.create_all()
+
     return app
