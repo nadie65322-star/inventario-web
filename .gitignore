@@ -1,19 +1,17 @@
-# Base de datos
-inventario.db
-
-# Entorno virtual
-venv/
-.venv/
-
-# Cache
+# Python
 __pycache__/
 *.pyc
+*.cpython-*
 
-# Variables de entorno
-.env
+# Entorno
+.venv/
 
+# PyCharm
 .idea/
+
+# Base de datos local
 instance/
-*.db
-__pycache__/
-.env
+inventario.db
+
+# SO
+.DS_Store
