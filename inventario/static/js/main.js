@@ -3,6 +3,102 @@ console.log("JS cargado correctamente");
 document.addEventListener('DOMContentLoaded', () => {
 
   // ==============================
+  // MODO DE GUARDADO
+  // ==============================
+  const modoAutomatico = document.getElementById('modoAutomatico');
+  const modoManual = document.getElementById('modoManual');
+  const diasManual = document.getElementById('diasManual');
+  const infoManual = document.getElementById('infoManual');
+  const btnGuardarManual = document.getElementById('btnGuardarManual');
+
+  let diaSeleccionadoAnterior = null;
+
+function aplicarModo(modo) {
+  const radiosDias = document.querySelectorAll('.dia-radio');
+
+  if (modo === 'manual') {
+    diasManual.style.display = 'flex';
+    infoManual.style.display = 'block';
+    btnGuardarManual.style.display = 'inline-block';
+
+    radiosDias.forEach(r => {
+      r.disabled = false;
+    });
+
+  } else {
+    diasManual.style.display = 'none';
+    infoManual.style.display = 'none';
+    btnGuardarManual.style.display = 'none';
+
+    radiosDias.forEach(r => {
+      r.checked = false;
+      r.disabled = true;
+    });
+
+    diaSeleccionadoAnterior = null;
+  }
+}
+
+
+  const modoGuardado = localStorage.getItem('modoGuardado') || 'automatico';
+  (modoGuardado === 'manual' ? modoManual : modoAutomatico).checked = true;
+  aplicarModo(modoGuardado);
+
+  [modoAutomatico, modoManual].forEach(radio => {
+    radio.addEventListener('change', () => {
+      localStorage.setItem('modoGuardado', radio.value);
+      aplicarModo(radio.value);
+    });
+  });
+
+  // ==============================
+  // CAMBIO DE DÍA
+  // ==============================
+  document.querySelectorAll('.dia-radio').forEach(radio => {
+    radio.addEventListener('change', e => {
+      const hayProductos =
+        document.querySelectorAll('.select-producto:checked').length > 0;
+
+      if (diaSeleccionadoAnterior && hayProductos) {
+        const ok = confirm(
+          'Tienes productos seleccionados sin guardar.\n¿Seguro que quieres cambiar de día?'
+        );
+
+        if (!ok) {
+          e.target.checked = false;
+          document.querySelector(
+            `.dia-radio[value="${diaSeleccionadoAnterior}"]`
+          ).checked = true;
+          return;
+        }
+      }
+
+      diaSeleccionadoAnterior = e.target.value;
+    });
+  });
+
+  // ==============================
+  // GUARDAR MANUAL
+  // ==============================
+  btnGuardarManual.addEventListener('click', () => {
+    if (!modoManual.checked) return;
+
+    const dia = document.querySelector('.dia-radio:checked');
+    const productos = document.querySelectorAll('.select-producto:checked');
+
+    if (!dia) {
+      alert('Selecciona un día');
+      return;
+    }
+
+    alert(
+      `Guardado manual\nDía: ${dia.value}\nProductos: ${productos.length}`
+    );
+
+    productos.forEach(p => p.checked = false);
+  });
+
+  // ==============================
   // AÑADIR PRODUCTO
   // ==============================
   const addForm = document.getElementById('addForm');
@@ -15,6 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ==============================
+  // INVENTARIO
+  // ==============================
   let accionActual = null;
   let filaActual = null;
   let procesando = false;
@@ -23,10 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConfirmar = document.getElementById('cantidadConfirmar');
   const modalCantidad = document.getElementById('cantidadModal');
 
-  // ==============================
-  // CONFIRMAR INGRESO / RETIRO
-  // ==============================
-  if (btnConfirmar && cantidadInput && modalCantidad) {
+  if (btnConfirmar) {
     btnConfirmar.addEventListener('click', async () => {
       if (procesando || !filaActual || !accionActual) return;
       procesando = true;
@@ -49,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = await r.json();
         filaActual.querySelector('.cantidad').textContent = data.cantidad;
-
         bootstrap.Modal.getInstance(modalCantidad)?.hide();
 
       } catch {
@@ -60,9 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ==============================
-  // CLICK GLOBAL
-  // ==============================
   document.addEventListener('click', async e => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -72,31 +164,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const id = tr.dataset.id;
 
-    // INGRESO / RETIRO
     if (btn.classList.contains('btn-inc') || btn.classList.contains('btn-dec')) {
       accionActual = btn.classList.contains('btn-inc') ? 'inc' : 'dec';
       filaActual = tr;
 
       document.getElementById('cantidadTitulo').textContent =
-        accionActual === 'inc'
-          ? 'Ingreso de inventario'
-          : 'Retiro de inventario';
+        accionActual === 'inc' ? 'Ingreso de inventario' : 'Retiro de inventario';
 
       document.getElementById('cantidadProducto').textContent =
-        `Producto: ${tr.children[1].textContent}`;
+        `Producto: ${tr.children[0].textContent}`;
 
       cantidadInput.value = '';
       new bootstrap.Modal(modalCantidad).show();
     }
 
-    // ELIMINAR
     if (btn.classList.contains('btn-del')) {
       if (!confirm('¿Eliminar este producto?')) return;
       await fetch(`/delete/${id}`, { method: 'POST' });
       tr.remove();
     }
 
-    // HISTORIAL
     if (btn.classList.contains('btn-historial')) {
       const r = await fetch(`/historial/${id}`);
       const data = await r.json();
@@ -112,32 +199,25 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>
           `).join('')
         : `<tr>
-             <td colspan="4" class="text-center text-muted">
-               Sin movimientos
-             </td>
-           </tr>`;
+            <td colspan="4" class="text-center text-muted">
+              Sin movimientos
+            </td>
+          </tr>`;
 
-      new bootstrap.Modal(
-        document.getElementById('historialModal')
-      ).show();
+      new bootstrap.Modal(document.getElementById('historialModal')).show();
     }
   });
 
-  // ==============================
-  // EXPORTAR EXCEL
-  // ==============================
-  const exportExcel = document.getElementById('exportExcel');
-  if (exportExcel) {
-    exportExcel.addEventListener('click', async () => {
-      const r = await fetch('/export-excel-semana', { method: 'POST' });
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
+});
 
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'inventario_semana.xlsx';
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+// mover producto seleccionado arriba
+document.addEventListener('change', e => {
+  if (!e.target.classList.contains('select-producto')) return;
+
+  const tr = e.target.closest('tr');
+  const tbody = tr.parentElement;
+
+  if (e.target.checked) {
+    tbody.prepend(tr);
   }
 });

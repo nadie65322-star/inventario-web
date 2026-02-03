@@ -1,6 +1,9 @@
 from flask import Blueprint, render_template, request, jsonify, send_file
 from inventario import db
-from inventario.models import Item, Movimiento
+from inventario.models import  (
+    Item, Movimiento,
+    GuardadoManual, GuardadoManualItem
+)
 from inventario.utils import normalize_text, semana_lunes_viernes
 from datetime import datetime, date
 import pandas as pd
@@ -12,6 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
 from openpyxl.styles import PatternFill, Font, Alignment
+
 
 bp = Blueprint('main', __name__)
 
@@ -40,6 +44,40 @@ def index():
 
     items = query.order_by(Item.nombre).all()
     return render_template('index.html', items=items, today=date.today())
+
+
+# ==============================
+# GUARDADO MANUAL
+# ==============================
+@bp.route('/guardado-manual', methods=['POST'])
+def guardado_manual():
+    data = request.json
+
+    item_ids = data.get('items', [])
+    descripcion = data.get('descripcion', '')
+
+    if not item_ids:
+        return jsonify({'error': 'No hay productos seleccionados'}), 400
+
+    guardado = GuardadoManual(descripcion=descripcion)
+    db.session.add(guardado)
+    db.session.flush()
+
+    for item_id in item_ids:
+        db.session.add(
+            GuardadoManualItem(
+                guardado_id=guardado.id,
+                item_id=item_id
+            )
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        'ok': True,
+        'guardado_id': guardado.id
+    })
+
 
 # ==============================
 # AÑADIR PRODUCTO
@@ -132,6 +170,47 @@ def historial(item_id):
             'nota': m.nota
         } for m in movimientos
     ])
+
+
+# ==============================
+# EXCEL GUARDADO MANUAL
+# ==============================
+@bp.route('/export-excel-manual/<int:guardado_id>')
+def export_excel_manual(guardado_id):
+    guardado = GuardadoManual.query.get_or_404(guardado_id)
+
+    items = pd.read_sql("""
+        SELECT i.nombre, i.categoria, i.presentacion,
+               i.lote, i.fecha_vencimiento, i.cantidad
+        FROM guardado_manual_item gmi
+        JOIN item i ON i.id = gmi.item_id
+        WHERE gmi.guardado_id = ?
+        ORDER BY i.nombre
+    """, db.engine, params=(guardado_id,))
+
+    historial = pd.read_sql("""
+        SELECT i.nombre AS producto,
+               m.fecha, m.tipo, m.cantidad
+        FROM movimiento m
+        JOIN item i ON i.id = m.item_id
+        JOIN guardado_manual_item gmi ON gmi.item_id = i.id
+        WHERE gmi.guardado_id = ?
+        ORDER BY m.fecha
+    """, db.engine, params=(guardado_id,))
+
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        items.to_excel(writer, sheet_name='Inventario', index=False)
+        historial.to_excel(writer, sheet_name='Historial', index=False)
+
+    output.seek(0)
+    return send_file(
+        output,
+        download_name=f'guardado_manual_{guardado_id}.xlsx',
+        as_attachment=True
+    )
+
 
 # ==============================
 # EXCEL SEMANAL (3 HOJAS)

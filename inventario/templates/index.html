@@ -6,7 +6,9 @@
   <form class="row g-2 align-items-center" method="get">
 
     <div class="col-md-4">
-      <input class="form-control" name="q" placeholder="Buscar"
+      <input class="form-control"
+             name="q"
+             placeholder="Buscar"
              value="{{ request.args.get('q','') }}">
     </div>
 
@@ -14,7 +16,6 @@
       <select class="form-select" name="categoria">
         <option value="">Todas</option>
         <option value="medicamento">Medicamento</option>
-        <option value="dispositivo">Dispositivo</option>
         <option value="pop">POP</option>
       </select>
     </div>
@@ -24,10 +25,7 @@
     </div>
 
     <div class="col-md-3 text-end">
-      <a href="/export-pdf" class="btn btn-danger me-2">
-        Exportar PDF
-      </a>
-
+      <a href="/export-pdf" class="btn btn-danger me-2">Exportar PDF</a>
       <button type="button" id="exportExcel" class="btn btn-success">
         Exportar Excel
       </button>
@@ -36,50 +34,110 @@
   </form>
 </div>
 
-<!-- AÑADIR -->
+<!-- AÑADIR PRODUCTO -->
 <form id="addForm" method="post" action="/add" class="card p-3 mb-4">
-  <h5>Añadir producto</h5>
+  <h5 class="mb-3">Añadir producto</h5>
 
-  <div class="row g-2">
-    <div class="col-md-2">
-      <input name="nombre" class="form-control" placeholder="Nombre" required>
-    </div>
+  <div class="row g-2 align-items-end">
 
     <div class="col-md-2">
+      <label class="form-label">Categoría</label>
       <select name="categoria" class="form-select">
         <option value="medicamento">Medicamento</option>
-        <option value="dispositivo">Dispositivo</option>
         <option value="pop">POP</option>
       </select>
     </div>
 
     <div class="col-md-2">
-      <input name="presentacion" class="form-control" placeholder="Presentación">
+      <label class="form-label">Nombre</label>
+      <input name="nombre" class="form-control" required>
     </div>
 
     <div class="col-md-2">
-      <input name="lote" class="form-control" placeholder="Lote">
-    </div>
-
-    <div class="col-md-1">
-      <input type="number" name="cantidad" class="form-control" value="0" min="0">
+      <label class="form-label">Presentación</label>
+      <input name="presentacion" class="form-control">
     </div>
 
     <div class="col-md-2">
-      <input type="date" name="fecha_vencimiento" class="form-control">
+      <label class="form-label">Vencimiento (mes / año)</label>
+      <input type="month" name="fecha_vencimiento" class="form-control">
+    </div>
+
+    <div class="col-md-2">
+      <label class="form-label">Lote</label>
+      <input name="lote" class="form-control">
     </div>
 
     <div class="col-md-1">
+      <label class="form-label">Cantidad</label>
+      <input type="number" name="cantidad"
+             class="form-control" value="0" min="0">
+    </div>
+
+    <div class="col-md-1">
+      <label class="form-label invisible">Acción</label>
       <button type="submit" class="btn btn-primary w-100">+</button>
     </div>
+
   </div>
 </form>
+
+<!-- MODO DE GUARDADO -->
+<div class="card p-3 mb-3">
+  <h6 class="mb-2">Modo de guardado</h6>
+
+  <div class="d-flex align-items-center gap-4 flex-wrap">
+
+    <div class="form-check">
+      <input class="form-check-input"
+             type="radio"
+             name="modoGuardado"
+             id="modoAutomatico"
+             value="automatico">
+      <label class="form-check-label">Automático</label>
+    </div>
+
+    <div class="form-check">
+      <input class="form-check-input"
+             type="radio"
+             name="modoGuardado"
+             id="modoManual"
+             value="manual">
+      <label class="form-check-label">Manual</label>
+    </div>
+
+    <!-- DÍAS -->
+    <div id="diasManual" class="d-flex gap-2" style="display:none;">
+      {% for d in ['L','M','X','J','V'] %}
+      <div class="form-check">
+        <input class="form-check-input dia-radio"
+               type="radio"
+               name="dia"
+               value="{{ d }}">
+        <label class="form-check-label">{{ d }}</label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button id="btnGuardarManual"
+            class="btn btn-secondary ms-auto"
+            style="display:none;">
+      Guardar selección
+    </button>
+
+  </div>
+
+  <small id="infoManual" class="text-muted mt-2" style="display:none;">
+    Selecciona productos y días antes de guardar.
+  </small>
+</div>
 
 <!-- TABLA -->
 <div class="card p-3">
   <table class="table table-hover">
     <thead>
       <tr>
+        <th class="colSeleccion" style="display:none;">✔</th>
         <th>Nombre</th>
         <th>Categoría</th>
         <th>Presentación</th>
@@ -93,6 +151,9 @@
     <tbody>
       {% for it in items %}
       <tr data-id="{{ it.id }}">
+        <td class="colSeleccion" style="display:none;">
+          <input type="checkbox" class="select-producto">
+        </td>
         <td>{{ it.nombre }}</td>
         <td>{{ it.categoria }}</td>
         <td>{{ it.presentacion }}</td>
@@ -111,40 +172,34 @@
   </table>
 </div>
 
+<!-- MODALES -->
 <div class="modal fade" id="cantidadModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
-
       <div class="modal-header">
         <h5 class="modal-title" id="cantidadTitulo"></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-
       <div class="modal-body">
         <p id="cantidadProducto"></p>
         <input type="number" id="cantidadInput" class="form-control" min="1">
       </div>
-
       <div class="modal-footer">
         <button class="btn btn-primary" id="cantidadConfirmar">
           Confirmar
         </button>
       </div>
-
     </div>
   </div>
 </div>
 
-
 <div class="modal fade" id="historialModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-
       <div class="modal-header">
         <h5 class="modal-title">Historial</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-
       <div class="modal-body">
         <table class="table">
           <thead>
@@ -158,10 +213,8 @@
           <tbody id="historialBody"></tbody>
         </table>
       </div>
-
     </div>
   </div>
 </div>
-
 
 {% endblock %}

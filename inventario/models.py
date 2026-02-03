@@ -83,3 +83,40 @@ class Movimiento(db.Model):
             cascade='all, delete-orphan'
         )
     )
+
+# =========================
+# GUARDADO MANUAL
+# =========================
+class GuardadoManual(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    fecha = db.Column(
+        db.DateTime,
+        default=datetime.utcnow
+    )
+
+    descripcion = db.Column(db.Text)
+
+    items = db.relationship(
+        'GuardadoManualItem',
+        backref='guardado',
+        cascade='all, delete-orphan'
+    )
+
+
+class GuardadoManualItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    guardado_id = db.Column(
+        db.Integer,
+        db.ForeignKey('guardado_manual.id'),
+        nullable=False
+    )
+
+    item_id = db.Column(
+        db.Integer,
+        db.ForeignKey('item.id'),
+        nullable=False
+    )
+
+    item = db.relationship('Item')
