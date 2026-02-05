@@ -10,7 +10,6 @@ def create_app():
     database_url = os.environ.get("DATABASE_URL")
 
     if database_url:
-        # Render usa postgres:// pero SQLAlchemy quiere postgresql://
         database_url = database_url.replace("postgres://", "postgresql://")
         app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     else:
@@ -20,5 +19,8 @@ def create_app():
 
     db.init_app(app)
 
-    return app
+    # 🔹 REGISTRAR BLUEPRINT
+    from inventario.routes import bp
+    app.register_blueprint(bp)
 
+    return app

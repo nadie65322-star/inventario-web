@@ -2,6 +2,22 @@ console.log("JS cargado correctamente");
 
 document.addEventListener('DOMContentLoaded', () => {
 
+// ==============================
+// AUTOAJUSTE DEL NOMBRE
+// ==============================
+const nombreTextarea = document.querySelector('.nombre-textarea');
+
+if (nombreTextarea) {
+  const ajustarAltura = () => {
+    nombreTextarea.style.height = 'auto';
+    nombreTextarea.style.height = nombreTextarea.scrollHeight + 'px';
+  };
+
+  nombreTextarea.addEventListener('input', ajustarAltura);
+  ajustarAltura(); // ajuste inicial
+}
+
+
   // ==============================
   // MODO DE GUARDADO
   // ==============================

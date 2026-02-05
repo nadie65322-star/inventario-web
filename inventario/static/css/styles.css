@@ -17,3 +17,10 @@ body.dark .table th,
 body.dark .table td {
  border-color: #444;
 }
+/* Nombre producto autoajustable */
+.nombre-textarea {
+  resize: none;              /* no se puede arrastrar */
+  overflow: hidden;          /* sin scroll */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
