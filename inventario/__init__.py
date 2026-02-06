@@ -19,8 +19,12 @@ def create_app():
 
     db.init_app(app)
 
-    # 🔥 REGISTRAR BLUEPRINT
+    # 🔥 REGISTRAR BLUEPRINT (NO SE QUITA)
     from inventario.routes import bp
     app.register_blueprint(bp)
+
+    # 🔧 CREAR TABLAS AUTOMÁTICAMENTE (solo por ahora)
+    with app.app_context():
+        db.create_all()
 
     return app
