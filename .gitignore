@@ -15,3 +15,5 @@ inventario.db
 
 # SO
 .DS_Store
+
+create_tables.py
