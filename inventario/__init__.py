@@ -19,7 +19,7 @@ def create_app():
 
     db.init_app(app)
 
-    # 🔹 REGISTRAR BLUEPRINT
+    # 🔥 REGISTRAR BLUEPRINT
     from inventario.routes import bp
     app.register_blueprint(bp)
 
