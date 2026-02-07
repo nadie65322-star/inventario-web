@@ -86,6 +86,10 @@ def guardado_manual():
 def add_item():
     fecha = request.form.get('fecha_vencimiento')
 
+    fecha_date = None
+    if fecha:
+        fecha_date = datetime.strptime(fecha+"-1", "%Y-%m-%d").date()
+
     item = Item(
         nombre=request.form.get('nombre'),
         nombre_normalizado=normalize_text(request.form.get('nombre')),
@@ -93,7 +97,7 @@ def add_item():
         presentacion=request.form.get('presentacion'),
         lote=request.form.get('lote'),
         cantidad=int(request.form.get('cantidad') or 0),
-        fecha_vencimiento=datetime.strptime(fecha, '%Y-%m-%d').date() if fecha else None
+        fecha_vencimiento=fecha_date
     )
 
     db.session.add(item)

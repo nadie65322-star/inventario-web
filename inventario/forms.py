@@ -6,7 +6,7 @@ class ItemForm(FlaskForm):
     nombre = StringField('Nombre', validators=[DataRequired()])
     categoria = SelectField(
         'Categoria',
-        choices=[('medicamento', 'Medicamento'), ('dispositivo', 'Dispositivo'), ('pop', 'POP')]
+        choices=[('medicamento', 'Medicamento'), ('pop', 'POP')]
     )
     presentacion = StringField('Presentación', validators=[Optional()])
     lote = StringField('Lote', validators=[Optional()])
