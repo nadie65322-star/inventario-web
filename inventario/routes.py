@@ -1,27 +1,23 @@
 from flask import Blueprint, render_template, request, jsonify, send_file
 from inventario import db
-from inventario.models import  (
-    Item, Movimiento,
-    GuardadoManual, GuardadoManualItem
-)
+from inventario.models import Item, Movimiento, GuardadoManual, GuardadoManualItem
 from inventario.utils import normalize_text, semana_lunes_viernes
-from datetime import datetime, date
-import pandas as pd
+from datetime import datetime
 import io
+import pytz
 
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle,
+    Paragraph, KeepTogether
+)
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-from openpyxl.styles import PatternFill, Font, Alignment
+bp = Blueprint("main", __name__)
 
+TZ_LOCAL = pytz.timezone("America/Bogota")
 
-bp = Blueprint('main', __name__)
-
-# ==============================
-# MESES EN ESPAÑOL
-# ==============================
 MESES_ES = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
     5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
@@ -31,10 +27,10 @@ MESES_ES = {
 # ==============================
 # INDEX
 # ==============================
-@bp.route('/')
+@bp.route("/")
 def index():
-    q = request.args.get('q', '')
-    categoria = request.args.get('categoria', '')
+    q = request.args.get("q", "")
+    categoria = request.args.get("categoria", "")
 
     query = Item.query
     if q:
@@ -43,8 +39,7 @@ def index():
         query = query.filter_by(categoria=categoria)
 
     items = query.order_by(Item.nombre).all()
-    return render_template('index.html', items=items, today=date.today())
-
+    return render_template("index.html", items=items)
 
 # ==============================
 # GUARDADO MANUAL
@@ -52,7 +47,6 @@ def index():
 @bp.route('/guardado-manual', methods=['POST'])
 def guardado_manual():
     data = request.json
-
     item_ids = data.get('items', [])
     descripcion = data.get('descripcion', '')
 
@@ -72,12 +66,7 @@ def guardado_manual():
         )
 
     db.session.commit()
-
-    return jsonify({
-        'ok': True,
-        'guardado_id': guardado.id
-    })
-
+    return jsonify({'ok': True, 'guardado_id': guardado.id})
 
 # ==============================
 # AÑADIR PRODUCTO
@@ -85,10 +74,10 @@ def guardado_manual():
 @bp.route('/add', methods=['POST'])
 def add_item():
     fecha = request.form.get('fecha_vencimiento')
-
     fecha_date = None
+
     if fecha:
-        fecha_date = datetime.strptime(fecha+"-1", "%Y-%m-%d").date()
+        fecha_date = datetime.strptime(fecha + "-01", "%Y-%m-%d").date()
 
     item = Item(
         nombre=request.form.get('nombre'),
@@ -103,17 +92,11 @@ def add_item():
     db.session.add(item)
     db.session.commit()
 
-    db.session.add(Movimiento(
-        item_id=item.id,
-        tipo='inicial',
-        cantidad=item.cantidad
-    ))
-    db.session.commit()
-
     return jsonify({'ok': True})
 
+
 # ==============================
-# INGRESO
+# INGRESO / RETIRO
 # ==============================
 @bp.route('/inc/<int:item_id>', methods=['POST'])
 def inc(item_id):
@@ -124,15 +107,13 @@ def inc(item_id):
     db.session.add(Movimiento(
         item_id=item.id,
         tipo='ingreso',
-        cantidad=cantidad
+        cantidad=cantidad,
+        fecha=datetime.utcnow()
     ))
     db.session.commit()
 
     return jsonify({'cantidad': item.cantidad})
 
-# ==============================
-# RETIRO
-# ==============================
 @bp.route('/dec/<int:item_id>', methods=['POST'])
 def dec(item_id):
     item = Item.query.get_or_404(item_id)
@@ -142,14 +123,36 @@ def dec(item_id):
     db.session.add(Movimiento(
         item_id=item.id,
         tipo='retiro',
-        cantidad=cantidad
+        cantidad=cantidad,
+        fecha=datetime.utcnow()
     ))
     db.session.commit()
 
     return jsonify({'cantidad': item.cantidad})
 
 # ==============================
-# ELIMINAR PRODUCTO
+# EDITAR PRODUCTO
+# ==============================
+@bp.route("/edit/<int:item_id>", methods=["POST"])
+def edit_item(item_id):
+    item = Item.query.get_or_404(item_id)
+
+    item.nombre = request.form.get('nombre')
+    item.nombre_normalizado = normalize_text(item.nombre)
+    item.categoria = request.form.get('categoria')
+    item.presentacion = request.form.get('presentacion')
+    item.lote = request.form.get('lote')
+
+    fecha = request.form.get('fecha_vencimiento')
+    item.fecha_vencimiento = (
+        datetime.strptime( fecha + "-01", "%Y-%m-%d").date()
+        if fecha else None
+    )
+
+    db.session.commit()
+    return jsonify({'ok': True})
+# ==============================
+# ELIMINAR
 # ==============================
 @bp.route('/delete/<int:item_id>', methods=['POST'])
 def delete_item(item_id):
@@ -159,141 +162,60 @@ def delete_item(item_id):
     return jsonify({'ok': True})
 
 # ==============================
-# HISTORIAL
+# HISTORIAL (hora correcta)
 # ==============================
-@bp.route('/historial/<int:item_id>')
+@bp.route("/historial/<int:item_id>")
 def historial(item_id):
-    movimientos = Movimiento.query.filter_by(item_id=item_id)\
-        .order_by(Movimiento.fecha.desc()).all()
-
-    return jsonify([
-        {
-            'fecha': m.fecha.strftime('%d/%m/%Y %H:%M'),
-            'tipo': m.tipo,
-            'cantidad': m.cantidad,
-            'nota': m.nota
-        } for m in movimientos
-    ])
-
-
-# ==============================
-# EXCEL GUARDADO MANUAL
-# ==============================
-@bp.route('/export-excel-manual/<int:guardado_id>')
-def export_excel_manual(guardado_id):
-    guardado = GuardadoManual.query.get_or_404(guardado_id)
-
-    items = pd.read_sql("""
-        SELECT i.nombre, i.categoria, i.presentacion,
-               i.lote, i.fecha_vencimiento, i.cantidad
-        FROM guardado_manual_item gmi
-        JOIN item i ON i.id = gmi.item_id
-        WHERE gmi.guardado_id = ?
-        ORDER BY i.nombre
-    """, db.engine, params=(guardado_id,))
-
-    historial = pd.read_sql("""
-        SELECT i.nombre AS producto,
-               m.fecha, m.tipo, m.cantidad
-        FROM movimiento m
-        JOIN item i ON i.id = m.item_id
-        JOIN guardado_manual_item gmi ON gmi.item_id = i.id
-        WHERE gmi.guardado_id = ?
-        ORDER BY m.fecha
-    """, db.engine, params=(guardado_id,))
-
-    output = io.BytesIO()
-
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        items.to_excel(writer, sheet_name='Inventario', index=False)
-        historial.to_excel(writer, sheet_name='Historial', index=False)
-
-    output.seek(0)
-    return send_file(
-        output,
-        download_name=f'guardado_manual_{guardado_id}.xlsx',
-        as_attachment=True
+    movimientos = (
+        Movimiento.query
+        .filter_by(item_id=item_id)
+        .order_by(Movimiento.fecha.desc())
+        .all()
     )
 
+    resultado = []
 
+    for m in movimientos:
+        fecha_local = m.fecha.replace(
+            tzinfo=pytz.utc
+        ).astimezone(TZ_LOCAL)
+
+        resultado.append({
+            "fecha": fecha_local.strftime("%d/%m/%Y %H:%M"),
+            "tipo": m.tipo,
+            "cantidad": m.cantidad,
+            "nota": m.nota
+        })
+
+    return jsonify(resultado)
 # ==============================
-# EXCEL SEMANAL (3 HOJAS)
+# EXCEL (MANTENIMIENTO)
 # ==============================
 @bp.route('/export-excel-semana', methods=['POST'])
 def export_excel_semana():
-    lunes, viernes = semana_lunes_viernes()
+    return jsonify({
+        "ok": False,
+        "message": "📊 Excel está en mantenimiento. Estamos haciéndolo mejor 💪"
+    }), 503
 
-    inventario = pd.read_sql("""
-        SELECT nombre, categoria, presentacion, lote,
-               fecha_vencimiento, cantidad
-        FROM item
-        ORDER BY nombre
-    """, db.engine)
-
-    historial = pd.read_sql("""
-        SELECT i.nombre AS producto,
-               m.fecha, m.tipo, m.cantidad
-        FROM movimiento m
-        JOIN item i ON i.id = m.item_id
-        WHERE date(m.fecha) BETWEEN ? AND ?
-        ORDER BY m.fecha
-    """, db.engine, params=(lunes, viernes))
-
-    movimientos = pd.read_sql("""
-        SELECT date(m.fecha) AS fecha,
-               m.tipo, m.cantidad
-        FROM movimiento m
-        WHERE date(m.fecha) BETWEEN ? AND ?
-    """, db.engine, params=(lunes, viernes))
-
-    output = io.BytesIO()
-
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        inventario.to_excel(writer, sheet_name='Inventario', index=False)
-        historial.to_excel(writer, sheet_name='Historial semanal', index=False)
-
-        wb = writer.book
-
-        # ----- ESTILO ENCABEZADOS -----
-        for ws in wb.worksheets:
-            for cell in ws[1]:
-                cell.fill = PatternFill("solid", fgColor="D9D9D9")
-                cell.font = Font(bold=True)
-                cell.alignment = Alignment(horizontal="center")
-
-        # ----- HOJA 3: RESUMEN SEMANAL -----
-        ws = wb.create_sheet('Resumen semanal')
-
-        fila = 1
-        dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
-
-        for i, dia in enumerate(dias):
-            fecha = lunes + pd.Timedelta(days=i)
-            data = movimientos[movimientos['fecha'] == fecha]
-
-            ws.cell(row=fila, column=1, value=dia.upper()).font = Font(bold=True)
-            fila += 1
-
-            ws.append(['Ingresos', 'Retiros', 'Total'])
-
-            ingreso = data[data['tipo'] == 'ingreso']['cantidad'].sum()
-            retiro = data[data['tipo'] == 'retiro']['cantidad'].sum()
-
-            ws.append([ingreso, retiro, ingreso - retiro])
-            fila += 2
-
-    output.seek(0)
-    return send_file(output, download_name='inventario_semana.xlsx', as_attachment=True)
+@bp.route('/export-excel-manual/<int:guardado_id>')
+def export_excel_manual(guardado_id):
+    return jsonify({
+        "ok": False,
+        "message": "😷 El Excel anda malito, pronto vuelve más fuerte"
+    }), 503
 
 # ==============================
-# PDF SEMANAL
+# PDF SEMANAL (CON HORA Y TEXTO AJUSTADO)
 # ==============================
-@bp.route('/export-pdf')
+@bp.route("/export-pdf")
 def export_pdf():
-    lunes, viernes = semana_lunes_viernes()
-    mes = MESES_ES[viernes.month]
-
-    items = Item.query.order_by(Item.nombre).all()
+    movimientos = (
+        Movimiento.query
+        .join(Item)
+        .order_by(Movimiento.fecha)
+        .all()
+    )
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -308,38 +230,90 @@ def export_pdf():
     styles = getSampleStyleSheet()
     elements = []
 
-    titulo = f"Inventario del {lunes.day} al {viernes.day} de {mes} de {viernes.year}"
-    elements.append(Paragraph(titulo, styles['Title']))
-    elements.append(Paragraph("<br/>", styles['Normal']))
+    lunes, viernes = semana_lunes_viernes()
 
-    tabla = [[
-        'Nombre', 'Categoría', 'Presentación',
-        'Lote', 'Vencimiento', 'Cantidad'
-    ]]
+    titulo = (
+        f"Inventario del {lunes.day} al {viernes.day} "
+        f"de {MESES_ES[viernes.month]} de {viernes.year}"
+    )
 
-    for i in items:
-        tabla.append([
-            i.nombre,
-            i.categoria,
-            i.presentacion or '',
-            i.lote or '',
-            i.fecha_vencimiento.strftime('%d/%m/%Y') if i.fecha_vencimiento else '',
-            i.cantidad
-        ])
+    elements.append(Paragraph(titulo, styles["Title"]))
+    elements.append(Paragraph(
+        f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        styles["Normal"]
+    ))
 
-    t = Table(tabla, repeatRows=1, colWidths=[160, 110, 120, 100, 110, 80])
-    t.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('FONT', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 10),
-        ('ALIGN', (-1,1), (-1,-1), 'CENTER')
-    ]))
+    dias = {
+        0: "Lunes",
+        1: "Martes",
+        2: "Miércoles",
+        3: "Jueves",
+        4: "Viernes"
+    }
 
-    elements.append(t)
+    movimientos_por_dia = {d: [] for d in dias}
+
+    for m in movimientos:
+        wd = m.fecha.weekday()
+        if wd in dias:
+            movimientos_por_dia[wd].append(m)
+
+    for dia_num, nombre_dia in dias.items():
+        lista = movimientos_por_dia[dia_num]
+        if not lista:
+            continue
+
+        bloque = []
+        bloque.append(Paragraph(nombre_dia, styles["Heading2"]))
+
+        tabla = [[
+            "Hora", "Nombre", "Categoría",
+            "Presentación", "Lote", "Vencimiento", "Cantidad"
+        ]]
+
+        for m in lista:
+            hora_local = m.fecha.replace(
+                tzinfo=pytz.utc
+            ).astimezone(TZ_LOCAL)
+
+            tabla.append([
+                hora_local.strftime("%H:%M"),
+                Paragraph(m.item.nombre, styles["Normal"]),
+                Paragraph(m.item.categoria, styles["Normal"]),
+                Paragraph(m.item.presentacion or "", styles["Normal"]),
+                m.item.lote or "",
+                m.item.fecha_vencimiento.strftime("%m/%Y")
+                if m.item.fecha_vencimiento else "",
+                m.cantidad
+            ])
+
+        t = Table(
+            tabla,
+            repeatRows=1,
+            colWidths=[50, 140, 110, 160, 90, 90, 70]
+        )
+
+        t.setStyle(TableStyle([
+            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+            ("FONT", (0,0), (-1,0), "Helvetica-Bold"),
+            ("ALIGN", (-1,1), (-1,-1), "CENTER"),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ]))
+
+        bloque.append(t)
+        elements.append(KeepTogether(bloque))
+
     doc.build(elements)
     buffer.seek(0)
 
-    nombre = f"inventario_{lunes.day}_{viernes.day}_{mes}_{viernes.year}.pdf"
+    nombre_pdf = (
+        f"inventario_{lunes.day}_{viernes.day}_"
+        f"{MESES_ES[viernes.month]}_{viernes.year}.pdf"
+    )
 
-    return send_file(buffer, download_name=nombre, as_attachment=True)
+    return send_file(
+        buffer,
+        download_name=nombre_pdf,
+        as_attachment=True
+    )
